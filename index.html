@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#eef1f4" />
+    <title>ReverseLab · AI 逆向工作台</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark">R</div>
+          <div>
+            <div class="brand-name">REVERSELAB</div>
+            <div class="brand-subtitle">AI 逆向设计工作台</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="tool-button primary" id="importBtn" type="button">导入扫描数据</button>
+          <button class="tool-button" id="generateBtn" type="button">生成工程图</button>
+          <button class="tool-button" id="exportBtn" type="button">下载工程图</button>
+          <button class="tool-button" id="alignBtn" type="button">自动主轴对齐 <span class="optional">可选</span></button>
+          <button class="tool-button" id="restoreBtn" type="button">恢复原姿态</button>
+          <div class="job-status" id="jobStatus"><span>扫描网格已载入</span><i class="status-light"></i></div>
+        </div>
+        <input id="fileInput" type="file" accept=".obj,.stl,.ply" hidden />
+      </header>
+
+      <main class="workbench">
+        <aside class="sidebar">
+          <section class="side-section model-section">
+            <div class="section-heading">
+              <h1>扫描数据与视角</h1>
+              <span class="section-kicker">01</span>
+            </div>
+            <div class="model-name" id="modelName">齿轮箱 · 扫描网格</div>
+            <div class="model-meta">
+              <div><span>顶点</span><strong id="vertexCount">544,273</strong></div>
+              <div><span>三角面</span><strong id="faceCount">1,088,798</strong></div>
+              <div><span>包围盒</span><strong id="bboxValue">147.81 × 148.74 × 189.29</strong></div>
+            </div>
+            <div class="model-meta secondary">
+              <div><span>当前姿态</span><strong id="poseValue">X 0° · Y 0° · Z 0°</strong></div>
+              <div><span>当前外包</span><strong id="extentValue">146.92 × 148.74 × 186.57</strong></div>
+            </div>
+            <label class="field-label" for="directionSelect">作为主视图的方向</label>
+            <select id="directionSelect" class="select-field">
+              <option value="front">前面</option>
+              <option value="back">后面</option>
+              <option value="left">左面</option>
+              <option value="right">右面</option>
+              <option value="top">顶面</option>
+            </select>
+            <p class="hint">若自动对齐不符合设计意图，请用下方角度栏人工调整，再选择主视图。</p>
+          </section>
+
+          <section class="side-section rotation-section">
+            <div class="section-heading compact">
+              <h2>姿态旋转 <span>实时预览</span></h2>
+              <span class="section-kicker">02</span>
+            </div>
+            <div class="slider-row">
+              <label for="rotX">X轴</label>
+              <input id="rotX" type="range" min="-180" max="180" value="0" />
+              <output id="rotXValue">0°</output>
+            </div>
+            <div class="slider-row">
+              <label for="rotY">Y轴</label>
+              <input id="rotY" type="range" min="-180" max="180" value="0" />
+              <output id="rotYValue">0°</output>
+            </div>
+            <div class="slider-row">
+              <label for="rotZ">Z轴</label>
+              <input id="rotZ" type="range" min="-180" max="180" value="0" />
+              <output id="rotZValue">0°</output>
+            </div>
+            <div class="button-row">
+              <button class="small-button" id="applyRotationBtn" type="button">应用旋转</button>
+              <button class="small-button ghost" id="clearRotationBtn" type="button">清零预览</button>
+            </div>
+          </section>
+
+          <section class="side-section dimensions-section">
+            <div class="section-heading compact">
+              <h2>重建与复核</h2>
+              <span class="section-kicker">03</span>
+            </div>
+            <div class="drawing-fact"><span>数据阶段</span><strong>扫描网格 · 姿态校正</strong></div>
+            <div class="drawing-fact"><span>复核重点</span><strong>孔位、倒角、圆角</strong></div>
+            <p class="hint">校正扫描姿态，检查识别特征；低置信度区域经人工复核后进入参数化重建。</p>
+          </section>
+
+          <section class="side-section assistant-section">
+            <div class="section-heading compact">
+              <h2>本地智能助手</h2>
+              <span class="model-pill">qwen2.5:7b</span>
+            </div>
+            <textarea id="assistantInput" rows="3">识别齿轮箱平面、圆柱、孔位和倒角，标出低置信度特征</textarea>
+            <button class="assistant-button" id="assistantBtn" type="button"><span class="spark">✦</span> 运行特征识别</button>
+            <div class="assistant-reply" id="assistantReply" aria-live="polite">
+              <span class="reply-dot"></span>
+              <span>等待指令。AI 会优先处理高置信度特征。</span>
+            </div>
+          </section>
+        </aside>
+
+        <section class="canvas-area">
+          <div class="canvas-topline">
+            <div class="tabs" role="tablist" aria-label="工作台视图">
+              <button class="tab active" id="previewTab" type="button" role="tab" aria-selected="true">扫描模型</button>
+              <button class="tab" id="engineeringTab" type="button" role="tab" aria-selected="false">工程图</button>
+            </div>
+            <div class="canvas-actions">
+              <span class="sync-label"><span class="sync-dot"></span> 已同步扫描数据</span>
+              <button class="icon-button" id="zoomOutBtn" type="button" title="缩小">−</button>
+              <span class="zoom-value" id="zoomValue">100%</span>
+              <button class="icon-button" id="zoomInBtn" type="button" title="放大">+</button>
+            </div>
+          </div>
+
+          <div class="view-panel" id="previewPanel">
+            <div class="preview-toolbar">
+              <div>
+                <span class="eyebrow">姿态校正预览</span>
+                <h2>齿轮箱 · 扫描网格三维预览</h2>
+              </div>
+              <div class="confidence-chip"><span></span> 特征识别 95.2%</div>
+            </div>
+            <div class="model-stage" id="modelStage">
+              <div class="stage-grid"></div>
+              <div class="model-canvas" id="modelCanvas" role="img" aria-label="齿轮箱扫描网格三维预览"></div>
+              <div class="stage-label top-left">SCAN MESH <span>3D PREVIEW</span></div>
+              <div class="stage-hint">拖拽旋转 · 滚轮缩放</div>
+              <div class="stage-label bottom-right" id="stageScale">比例 1:1</div>
+            </div>
+            <div class="feature-strip">
+              <div class="feature-card high"><span class="feature-icon plane">▱</span><div><strong>平面</strong><small>置信度 99.1%</small></div></div>
+              <div class="feature-card high"><span class="feature-icon cylinder">◉</span><div><strong>圆柱 / 孔位</strong><small>置信度 97.6%</small></div></div>
+              <div class="feature-card medium"><span class="feature-icon chamfer">◇</span><div><strong>倒角</strong><small>置信度 91.4% · 建议复核</small></div></div>
+              <div class="feature-card low"><span class="feature-icon fillet">⌒</span><div><strong>圆角</strong><small>置信度 84.8% · 待人工标注</small></div></div>
+            </div>
+          </div>
+
+          <div class="view-panel engineering-panel hidden" id="engineeringPanel">
+            <div class="preview-toolbar engineering-toolbar">
+              <div>
+                <span class="eyebrow">扫描工程图</span>
+                <h2>齿轮箱 · 工程图复核</h2>
+              </div>
+              <div class="drawing-meta"><span>扫描资料</span><span>工程图预览</span></div>
+            </div>
+            <div class="drawing-sheet" id="drawingSheet">
+              <figure class="source-drawing">
+                <img src="assets/open-source-drawing/three-stage-gearbox-drawing.png" alt="齿轮箱 A3 工程图预览" />
+                <figcaption>工程图复核：检查特征位置、零件明细与图纸信息。</figcaption>
+              </figure>
+              <div class="drawing-source"><span>扫描结果</span><span>A3 工程图 · 尺寸标注</span><span>三维扫描网格 · 特征复核</span></div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+    <script type="importmap">
+      {"imports":{"three":"./assets/vendor/three/three.module.js"}}
+    </script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
